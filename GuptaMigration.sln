@@ -3,9 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.28010.2036
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GuptaMigration", "GuptaMigration\GuptaMigration.csproj", "{CB5307F2-90AC-4577-BC1C-CDF9E95FF5AD}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GuptaMigration", "GuptaMigration\GuptaMigration.csproj", "{CB5307F2-90AC-4577-BC1C-CDF9E95FF5AD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestGuptaMigration", "TestGuptaMigration\TestGuptaMigration.csproj", "{F586700F-0A15-4CDC-AF21-071598585EB3}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestGuptaMigration", "TestGuptaMigration\TestGuptaMigration.csproj", "{F586700F-0A15-4CDC-AF21-071598585EB3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SanaMainService", "SanaMainService\SanaMainService.csproj", "{2DA9A4DD-CEDC-4D7F-8BFC-C40850D0C168}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,6 +23,10 @@ Global
 		{F586700F-0A15-4CDC-AF21-071598585EB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F586700F-0A15-4CDC-AF21-071598585EB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F586700F-0A15-4CDC-AF21-071598585EB3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2DA9A4DD-CEDC-4D7F-8BFC-C40850D0C168}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2DA9A4DD-CEDC-4D7F-8BFC-C40850D0C168}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2DA9A4DD-CEDC-4D7F-8BFC-C40850D0C168}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2DA9A4DD-CEDC-4D7F-8BFC-C40850D0C168}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

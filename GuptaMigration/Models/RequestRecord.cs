@@ -9,12 +9,17 @@ namespace GuptaMigration.Models
 
         public string FunctionName { get; set; }
 
-        public string Function2Name { get; set; }
+        public string CalledByFunction { get; set; }
 
         public string TableName { get; set; }
 
-        public string Operation { get; set; }
+        public List<string> Operation { get; set; }
+
+        public int OperationLevel { get; set; }
 
         public int Count { get; set; }
-}
+
+        public string File { get; set; }
+
+    }
 }

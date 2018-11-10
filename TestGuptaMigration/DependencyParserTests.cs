@@ -64,8 +64,8 @@ namespace TestGuptaMigration
 
             //Act
             string operation = ConstantsClass.ParsingConstants.InsertString;
-            var records = parser.FindTableOperations(operation, contents,"Functions1");
-
+            parser.FindTableOperations(operation, contents);
+            var records = parser.RequestRecords;
 
             //Asset
             Assert.Single(records);
@@ -84,7 +84,8 @@ namespace TestGuptaMigration
 
             //Act
             string operation = ConstantsClass.ParsingConstants.InsertString;
-            var records = parser.FindTableOperations(operation, contents, "artikel");
+            parser.FindTableOperations(operation, contents);
+            var records = parser.RequestRecords;
 
 
             //Asset
@@ -107,7 +108,6 @@ namespace TestGuptaMigration
             string operation = ConstantsClass.ParsingConstants.InsertString;
             List<string> tablesAndFunctions = parser.GetTableNames(contents, operation);
 
-
             //Asset
             Assert.Equal("ARTIKELTAXIERUNG",tablesAndFunctions[0].ToUpper() );
         }
@@ -125,7 +125,11 @@ namespace TestGuptaMigration
             parser.TableNames = tableNames;
 
             //Act
-            var tablesAndFunctions = parser.ParseDocument(contents, "artikel");
+            parser.ParseDocument(contents, "artikel");
+
+            var tablesAndFunctions = parser.RequestRecords;
+
+
 
             //Asset
             Assert.NotEmpty(tablesAndFunctions);

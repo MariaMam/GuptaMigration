@@ -2,6 +2,7 @@
 using GuptaMigration.Models;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using static GuptaMigration.Constants.ConstantsClass;
@@ -11,25 +12,34 @@ namespace GuptaMigration.Services
     public class DependencyParser
     {
         Dictionary<string, Dictionary<string,int>> FunctionsTablesDependency = new Dictionary<string, Dictionary<string, int>>();
-        List<RequestRecord> RequestRecords = new List<RequestRecord>();
+        public List<RequestRecord> RequestRecords { get; set; }
+        List<RequestRecord> RequestRecordsDupl = new List<RequestRecord>();
         public List<string> TableNames { get; set; }
+        string FileName = "";
+        string[] opeartions;
+        HashSet<string> FunctionsNamesList = new HashSet<string>();
 
-
-        public List<RequestRecord> ParseDocument(string file,string fileName)
+        public DependencyParser()
         {
-            string[] opeartions = { ParsingConstants.InsertString,
-                ParsingConstants.DeeteString, ParsingConstants.UpdateString,ParsingConstants.SelectString };
+            opeartions = new string[]{ ParsingConstants.InsertString,
+                ParsingConstants.DeeteString, ParsingConstants.UpdateString};
 
-            foreach (var op in opeartions)
-            {
-                FindTableOperations(op,file, fileName);
-
-            }
-
-            return RequestRecords;
+            /*opeartions = new string[]{ ParsingConstants.InsertString,
+                ParsingConstants.DeeteString, ParsingConstants.UpdateString,ParsingConstants.SelectString };*/
+            RequestRecords = new List<RequestRecord>();
         }
 
-            public List<RequestRecord> FindTableOperations(string operation, string file, string fileName)
+        public void ParseDocument(string fileName,string file)
+        {
+            //RequestRecords = new List<RequestRecord>();       
+            FileName = fileName;
+            foreach (var op in opeartions)
+            {
+                FindTableOperations(op,file);        
+            }            
+        }
+
+        public void FindTableOperations(string operation, string file)
         {
             //if we see the insert statement, we can drop everything after and finf the last function in the file
 
@@ -37,6 +47,7 @@ namespace GuptaMigration.Services
 
             while (currentFile.Contains(operation))
             {
+                
 
                 string functionFullText = "";              
 
@@ -49,7 +60,7 @@ namespace GuptaMigration.Services
 
                 if (!functionFullText.ToLower().Contains("function:"))
                 {
-                    FunctionName = fileName;
+                    FunctionName = FileName;
                 }
                 else
                 {
@@ -57,37 +68,160 @@ namespace GuptaMigration.Services
                 }
                 //Get all sql operation calls in current function
                 List<string> tableNames = GetTableNames(functionFullText, operation);
-                
-                foreach(var table in tableNames)
+                LogDuplicates(tableNames, FunctionName, operation, FileName);
+                foreach (var table in tableNames)
                 {
-                    var record = RequestRecords.Where(r => r.FunctionName == FunctionName & r.TableName == table &&
-                    r.Operation == operation).FirstOrDefault();
+                    var record = RequestRecords.Where(r => r.FunctionName == FunctionName & r.TableName == table).FirstOrDefault();
+                    
 
                     if (record != null)
                     {
+                        if(!record.Operation.Contains(operation))
+                        {
+                            record.Operation.Add(operation);
+                            if( operation != ParsingConstants.SelectString)
+                            {
+                                record.OperationLevel = 2;
+                            }
+                        }
+                        
                         record.Count++;
 
                     }
                     else
                     {
-                        RequestRecord recordreq = new RequestRecord();
-                        recordreq.FunctionName = FunctionName;
-                        recordreq.Operation = operation;
-                        recordreq.TableName = table;
-                        recordreq.Count = 1;
-
+                        RequestRecord recordreq = new RequestRecord
+                        {
+                            FunctionName = FunctionName.ToLower(),
+                            Operation = new List<string> { operation },
+                            TableName = table.ToLower(),
+                            Count = 1,
+                            OperationLevel = operation == ParsingConstants.SelectString ? 1 :2
+                        };   
+                        
                         RequestRecords.Add(recordreq);
 
+                        FunctionsNamesList.Add(FunctionName.ToLower());
                     }
+                }               
+             
+            }          
+
+        }
+
+        public void FindFunctionCalls(string fileName, string file)
+        {
+            string currentFile = file;
+
+            while (currentFile.Contains("Call"))
+            {
+
+                int indexOfCall = currentFile.IndexOf("Call");
+                var indexOfFunctionEnd = currentFile.IndexOf("(", indexOfCall);
+
+                var FunctionCallString = currentFile.Substring(indexOfCall, indexOfFunctionEnd - indexOfCall);                
+                var FunctionCallStringAr = FunctionCallString.Split(" ");
+
+                if (FunctionCallStringAr.Count() > 1)
+                {
+                    string FunctionCalled = FunctionCallStringAr[1];
+
+                    if (FunctionsNamesList.Contains(FunctionCalled.ToLower()))
+                    {
+                        string functionFullText = "";
+
+                        CutFileOnCurrentFunctionAndRest(ref currentFile, FunctionCallString,
+                            ref functionFullText);
+
+                        //Get function name   
+                        //when the rest of the file does not have the function anymore ? but how could that be...
+                        string FunctionName = "";
+
+                        if (!functionFullText.ToLower().Contains("function:"))
+                        {
+                            FunctionName = FileName.ToLower();
+                        }
+                        else
+                        {
+                            FunctionName = GetFunctionName(functionFullText);
+                        }
+
+                        var record = RequestRecords.Where(r => r.FunctionName == FunctionCalled & r.CalledByFunction == FunctionName)
+                        .FirstOrDefault();
+
+
+                        if (record == null)
+                        {
+                            RequestRecord recordreq = new RequestRecord
+                            {
+                                FunctionName = FunctionCalled,
+                                Operation = new List<string> { "FunctionCall" },
+                                CalledByFunction = FunctionName,
+                                Count = 1,
+                                OperationLevel = 1
+                            };
+
+                            RequestRecords.Add(recordreq);
+
+
+                        }
+                    }
+                    else
+                    {
+                        currentFile = currentFile.Substring(indexOfFunctionEnd);
+                    }
+                }
+                else
+                {
+                    currentFile = currentFile.Substring(indexOfFunctionEnd);
 
                 }
 
-                   
-             
             }
 
-            return RequestRecords;
+        }
 
+        public void LogDuplicates(List<string> tableNames, string FunctionName, string operation, string fileName)
+        {
+            using (StreamWriter file =
+            new StreamWriter(@"logs.txt"))
+            {
+                foreach (var table in tableNames)
+                {
+                    var record = RequestRecordsDupl.Where(r => r.FunctionName == FunctionName & r.TableName == table).FirstOrDefault();
+
+                    if (record != null)
+                    {
+                        if (!record.Operation.Contains(operation))
+                        {
+                            record.Operation.Add(operation);
+                            if (operation != ParsingConstants.SelectString)
+                            {
+                                record.OperationLevel = 2;
+                            }
+                        }
+
+                        record.Count++;
+                        file.WriteLine("Table {0} : , Function : {1} , Operation : {2} , FileName : {3} ", record.TableName, record.FunctionName, record.Operation, record.File);
+                 
+                        file.WriteLine("Table {0} : , Function : {1} , Operation : {2} , FileName : {3} ", table,  FunctionName,  operation,  fileName);
+                    }
+                    else
+                    {
+                        RequestRecord recordreq = new RequestRecord
+                        {
+                            FunctionName = FunctionName,
+                            Operation = new List<string> { operation },
+                            TableName = table,
+                            Count = 1,
+                            OperationLevel = operation == ParsingConstants.SelectString ? 1 : 2,
+                            File = fileName
+                        };
+                        RequestRecordsDupl.Add(recordreq);
+                    }
+                    
+                }
+            }
         }
 
         public List<string> GetTableName(string statement, string operation)
@@ -97,13 +231,13 @@ namespace GuptaMigration.Services
 
             if (operation == ParsingConstants.SelectString)
             {
-                int start = statement.IndexOf("JOIN");
+                int start = statement.ToLower().IndexOf("join");
                 
                     for(int i = 0; i< words.Length;i++)
                     {
                         if (words[i].ToLower() == "from")
                         {
-                        if (TableNames.Contains(words[i + 1].ToUpper()))
+                        if (TableNames.Contains(words[i + 1].ToLower()))
                         {
                             tableNames.Add(words[i + 1]);
                         }
@@ -112,7 +246,7 @@ namespace GuptaMigration.Services
 
                         if (words[i].ToLower() == "join")
                         {
-                        if (TableNames.Contains(words[i + 1].ToUpper()))
+                        if (TableNames.Contains(words[i + 1].ToLower()))
                         {
                             tableNames.Add(words[i + 1]);
                         }
@@ -141,14 +275,14 @@ namespace GuptaMigration.Services
                     var table = tableRaw.Substring(0, EndOfTableNameIndex).Trim();
                     if (TableNames.Contains(table))
                     {
-                        tableNames.Add(table.ToUpper());
+                        tableNames.Add(table.ToLower());
                     }
                 }
                 else
                 {
                     var table = tableRaw.Trim();
 
-                    if (TableNames.Contains(table.ToUpper()))
+                    if (TableNames.Contains(table.ToLower()))
                     {
                         tableNames.Add(table);
                     }
@@ -162,9 +296,9 @@ namespace GuptaMigration.Services
             var functionStatementEndIndex = functionText.IndexOf(ConstantsClass.ParsingConstants.Head);
             //Get only the line with the function name 
             var functionLineText = functionText.Substring(0, functionStatementEndIndex);
-
             var functionLineArray = functionLineText.Split(" ");
-            return functionLineArray[1].Replace("\n", "").Replace("\r", "").Replace(":","");
+            return functionLineArray[1].Replace("\n", "").Replace("\r", "")
+                .Replace(":","").Replace("\t", "").Replace("!","").Replace("\"","");
         }
 
         public List<string> GetTableNames(string functionFullText, string operation)
@@ -190,7 +324,14 @@ namespace GuptaMigration.Services
                     {
                         var operationLineText = functionFullText.Substring(lineNr, cutlineNr - lineNr);
                         var tables = GetTableName(operationLineText, operation);
-                        tableNames.AddRange(tables);
+                        foreach (var t in tables)
+                        {
+                            if (!tableNames.Contains(t))
+                            {
+                                tableNames.Add(t);
+                            }
+                        }
+                        
                         functionFullText = functionFullText.Substring(cutlineNr);
                     }
                     else
@@ -235,11 +376,10 @@ namespace GuptaMigration.Services
                 if (nextFunctionIndex != -1)
                 {
                     var functionsBeforeIncludingCurrent = currentFile.Substring(0, nextFunctionIndex);
-
                     var startFunctionIndex = functionsBeforeIncludingCurrent.LastIndexOf("function:");
 
                     if (startFunctionIndex == -1)
-                    {
+                    {                        
                         functionFullText = functionsBeforeIncludingCurrent;
                     }
                     else
@@ -250,11 +390,19 @@ namespace GuptaMigration.Services
                     //operationLineText = currentFile.Substring(lineNr, cutlineNr - lineNr);
                 }
                 else
-                {                    
-                    functionFullText = currentFile;
-                    currentFile = "";
+                {
+                    var startFunctionIndex = currentFile.LastIndexOf("function:");
+                    if (startFunctionIndex == -1)
+                    {
+                        functionFullText = currentFile;
+                        
+                    }
+                    else
+                    {
+                        functionFullText = currentFile.Substring(startFunctionIndex);
+                    }
                     //operationLineText = currentFile.Substring(lineNr);
-
+                    currentFile = "";
                 }
 
             }
@@ -264,6 +412,11 @@ namespace GuptaMigration.Services
 
                 var a = 0;
             }
+        }
+
+        public List<RequestRecord> DefineFunctionCalls(List<RequestRecord> dependencies, string FileName)
+        {
+            return dependencies;
         }
     }
 }
